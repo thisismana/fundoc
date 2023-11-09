@@ -70,7 +70,7 @@ impl ParserStateMachine {
     fn to_code_block_mut(&mut self) {
         self.state = match self.state {
             ParserState::ArticleParsing => {
-                println!("{:?} -> CodeBlockParsing", self.state);
+                // println!("{:?} -> CodeBlockParsing", self.state);
                 ParserState::CodeBlockParsing
             }
             _ => panic!(
@@ -84,7 +84,7 @@ impl ParserStateMachine {
     fn to_article_mut(&mut self) {
         self.state = match self.state {
             ParserState::CommentParsing | ParserState::NestedCommentParsing | ParserState::ArticleParsing => {
-                println!("{:?} -> ArticleParsing", self.state);
+                // println!("{:?} -> ArticleParsing", self.state);
                 ParserState::ArticleParsing
             }
             _ => panic!(
@@ -420,7 +420,7 @@ impl Parser {
 
     fn parse_article_content(&mut self, line: &str, line_number: i16) {
         let trimmed_line = self.trim_article_line(line.to_string());
-        println!("Parsing {:?}:{}", trimmed_line, line_number);
+        // println!("Parsing {:?}:{}", trimmed_line, line_number);
 
         if trimmed_line.starts_with(Keyword::FileArticle.as_str()) {
             self.file_global_topic =
