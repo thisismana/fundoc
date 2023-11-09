@@ -1,7 +1,8 @@
-use glob::glob;
-use regex::Regex;
 use std::fs::File;
 use std::io::prelude::*;
+
+use glob::glob;
+use regex::Regex;
 
 use crate::config;
 
@@ -68,7 +69,10 @@ impl ParserStateMachine {
 
     fn to_code_block_mut(&mut self) {
         self.state = match self.state {
-            ParserState::ArticleParsing => ParserState::CodeBlockParsing,
+            ParserState::ArticleParsing => {
+                println!("{:?} -> CodeBlockParsing", self.state);
+                ParserState::CodeBlockParsing
+            }
             _ => panic!(
                 "Invalid state transition from {:?} to {:?}",
                 self.state,
@@ -79,8 +83,10 @@ impl ParserStateMachine {
 
     fn to_article_mut(&mut self) {
         self.state = match self.state {
-            ParserState::CommentParsing => ParserState::ArticleParsing,
-            ParserState::NestedCommentParsing => ParserState::ArticleParsing,
+            ParserState::CommentParsing | ParserState::NestedCommentParsing | ParserState::ArticleParsing => {
+                println!("{:?} -> ArticleParsing", self.state);
+                ParserState::ArticleParsing
+            }
             _ => panic!(
                 "Invalid state transition from {:?} to {:?}",
                 self.state,
@@ -196,7 +202,7 @@ enum Keyword {
     *  */
     * fn parse_files() {}
     * ```
-    */
+     */
     FileArticle,
     /**
      * @Article Syntax
@@ -301,12 +307,12 @@ impl Parser {
             "{}{}{}//{}{}|//{}{}",
             multiline_mode, linebreakers, spaces, spaces, disable_comment, spaces, disable_comment
         ))
-        .unwrap();
+            .unwrap();
         let enable_regex = Regex::new(&format!(
             "{}{}{}//{}{}|//{}{}",
             multiline_mode, linebreakers, spaces, spaces, enable_comment, spaces, enable_comment
         ))
-        .unwrap();
+            .unwrap();
 
         let start_idx = match disable_regex.find_iter(&text).next() {
             Some(m) => m.start(),
@@ -375,25 +381,25 @@ impl Parser {
         match line.trim() {
             l if l.starts_with(&self.start_comment)
                 && self.state_machine.is_in(ParserState::Skipping) =>
-            {
-                self.state_machine.to_comment_section_mut();
-            }
+                {
+                    self.state_machine.to_comment_section_mut();
+                }
             l if l.ends_with(&self.start_comment)
                 && self.state_machine.is_in(ParserState::ArticleParsing) =>
-            {
-                self.state_machine.to_nested_comment_section_mut();
-            }
+                {
+                    self.state_machine.to_nested_comment_section_mut();
+                }
             l if l.ends_with(&self.end_comment)
                 && self.state_machine.is_in(ParserState::NestedCommentParsing) =>
-            {
-                self.state_machine.to_article_mut();
-            }
+                {
+                    self.state_machine.to_article_mut();
+                }
             l if l.ends_with(&self.end_comment)
                 && self.code_block.is_empty()
                 && self.state_machine.is_in(ParserState::ArticleParsing) =>
-            {
-                self.state_machine.to_article_ending_mut();
-            }
+                {
+                    self.state_machine.to_article_ending_mut();
+                }
             _ => {}
         };
     }
@@ -402,9 +408,11 @@ impl Parser {
         if !self.current_article.topic.is_empty() {
             self.current_article.content = self.current_article.content.trim().to_string();
             self.current_article.end_line = line_number - 1;
+            let path = self.current_article.path.clone();
             self.articles.push(self.current_article.clone());
 
             self.current_article = self.new_article();
+            self.current_article.path = path;
         }
 
         self.state_machine.to_skippintg_mut();
@@ -412,13 +420,15 @@ impl Parser {
 
     fn parse_article_content(&mut self, line: &str, line_number: i16) {
         let trimmed_line = self.trim_article_line(line.to_string());
+        println!("Parsing {:?}:{}", trimmed_line, line_number);
 
         if trimmed_line.starts_with(Keyword::FileArticle.as_str()) {
             self.file_global_topic =
                 self.trim_article_line(line.replace(Keyword::FileArticle.as_str(), ""));
             self.state_machine.to_article_mut();
         } else if !self.file_global_topic.is_empty()
-            && !self.state_machine.is_in(ParserState::ArticleParsing)
+            && !(self.state_machine.is_in(ParserState::ArticleParsing)
+            || (self.state_machine.is_in(ParserState::CodeBlockParsing)))
         {
             self.current_article.topic = self.file_global_topic.clone();
             self.current_article.start_line = line_number;
@@ -441,15 +451,17 @@ impl Parser {
             self.state_machine.to_code_block_mut();
         } else if self.state_machine.is_in(ParserState::CodeBlockParsing)
             && (trimmed_line.starts_with(self.start_comment.as_str())
-                || trimmed_line.starts_with(Keyword::CodeBlockEnd.as_str()))
+            || trimmed_line.starts_with(Keyword::CodeBlockEnd.as_str()))
         {
             self.code_block = "".to_string();
             self.current_article.content += "```";
 
             self.current_article.end_line = line_number - 1;
+            let path = self.current_article.path.clone();
             self.articles.push(self.current_article.clone());
 
             self.current_article = self.new_article();
+            self.current_article.path = path;
             self.state_machine.to_skippintg_mut();
         } else if self.state_machine.is_in(ParserState::ArticleParsing)
             || self.state_machine.is_in(ParserState::CodeBlockParsing)
