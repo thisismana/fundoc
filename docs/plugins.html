@@ -163,7 +163,7 @@ command = &quot;fundoc -e&quot;
 <p>The <code>-e</code> artument runs Fundoc in mdBook extension mode.</p>
 <p>And in your your-plugin-name.html.lua, you should implement text transformation like this:</p>
 <pre><code class="language-lua">function transform(text)
-  result = 'transformted text' 
+  result = 'transformted text'
 end
 </code></pre>
 <p>Fundoc calls the <code>transform</code> function and passes the parsed text from the marked text block. You can transform it in any way you want.
